@@ -1,1 +1,0 @@
-# TikTok-API.py file will contain functions to interact with the TikTok API - for the moement, it will be a mock of this processe, so functions will return hardcoded data

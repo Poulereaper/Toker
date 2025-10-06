@@ -11,8 +11,8 @@ Faites pas gaffe après ça j'ai lacché l'anglais j'ai eu que 800 au TOEIC..Bre
 
 Comme on a convenus pour le moemtn on ne fait que mock les données des API, les fichiers python existent bie mais ils ne sont pas fonctionnels, ils renvoient seulement des fausses données mais correctement formatées.
 
-API-geter.py : récupère les données des API (mockées pour le moment)
-Insta-API.py, TikTok-API.py, X-API.py : contiennent les fonctions de récupération des données (mockées)
+API_geter.py : récupère les données des API (mockées pour le moment)
+Insta_API.py, TikTok_API.py, X_API.py : contiennent les fonctions de récupération des données (mockées)
 
 Formats des données récupérées (exemples qui sont en théories des JSONs) :
 ```json
@@ -65,11 +65,11 @@ Formats des données récupérées (exemples qui sont en théories des JSONs) :
 
 On devra avoir 100 likes minimum pour que le profil soit validé et intégré dans la base de données.
 
-User-creation.py : crée un utilisateur dans la base de données, c'est ici que l'appel API sera fait :
+User_creation.py : crée un utilisateur, c'est kes ends poionts qu'on utilisera plus tard c'est ici que l'appel API sera fait en utilisant API_geter.py:
 User se connecte avec son compte TikTok/Instagram -> on récupère les données via l'API (mockée) - > on crée le profil dans la base de données
-Data-processing.py : traite les données récupérées (nettoyage, vectorisation, etc.)
+Data_processing.py : traite les données récupérées (nettoyage, vectorisation, etc.)
 Database.py : gère la connexion à la base de données et les opérations CRUD, une fois le sdonnées process on les intègre dans la base de données
-API-server.py : Django qui expose les endpoints pour le frontend
+API_server.py : Django qui expose les endpoints pour le frontend
 
 ---
 
@@ -82,3 +82,34 @@ poetry shell
 ```
 
 ---
+
+.
+├── README-en.md
+├── README-fr.md
+├── backend
+│   ├── README-backend.md
+│   ├── cli.py
+│   ├── core
+│   │   ├── API_geter.py
+│   │   ├── Data_processing.py
+│   │   ├── Database.py
+│   │   ├── Insta_API.py
+│   │   ├── TikTok_API.py
+│   │   ├── User_creation.py
+│   │   ├── X_API.py
+│   │   └── __pycache__
+│   │       ├── API_geter.cpython-312.pyc
+│   │       ├── Database.cpython-312.pyc
+│   │       └── TikTok_API.cpython-312.pyc
+│   ├── db
+│   ├── poetry.lock
+│   ├── pyproject.toml
+│   └── toker.db
+├── documentation
+└── frontend
+    └── README-frontend
+
+
+---
+
+Commentaires en francais seront à chyanger en en
