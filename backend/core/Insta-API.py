@@ -1,0 +1,1 @@
+# Insta-API.py file will contain functions to interact with the Instagram API - for the moement, it will be a mock of this processe, so functions will return hardcoded data
