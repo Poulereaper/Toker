@@ -20,17 +20,17 @@ L’idée est donc de **repenser la rencontre** en utilisant les **likes, abonne
 
 | Objectif | Spécifique | Mesurable | Approprié | Réaliste | Temporel |
 |-----------|-------------|------------|-------------|-----------|------------|
-| **Prototype fonctionnel** | Développer une application de rencontre basée sur les centres d’intérêt extraits d’un réseau social | Permettre à un utilisateur de créer un profil et d’obtenir 5 suggestions pertinentes | Aligné avec les compétences Data & Cyber | MVP réalisable sans accès complet à l’API TikTok | Mai 2025 |
-| **Validation utilisateur** | Tester la pertinence des suggestions auprès d’un panel d’utilisateurs | 20 retours, 60 % de satisfaction minimum | Confirme la pertinence du concept | Tests réalisables en interne | Mars–Avril 2025 |
-| **Cadre légal & API** | Identifier les contraintes RGPD et techniques liées aux données sociales | Rapport de 5 pages documenté | Essentiel pour la conformité du projet | Recherche faisable avec encadrement académique | Février 2025 |
-| **Livrables académiques** | Rédiger le dossier final et présenter le projet | Rapport complet (≥30 pages) + soutenance | Cohérent avec les attentes du PFE | Réalisable en équipe | Juin 2025 |
+| **Prototype fonctionnel** | Développer une application de rencontre basée sur les centres d’intérêt extraits d’un réseau social | Permettre à un utilisateur de créer un profil et d’obtenir 5 suggestions pertinentes | Aligné avec les compétences Data & Cyber | MVP réalisable sans accès complet à l’API TikTok | Décembre 2025 |
+| **Validation utilisateur** | Tester la pertinence des suggestions auprès d’un panel d’utilisateurs | 20 retours, 60 % de satisfaction minimum | Confirme la pertinence du concept | Tests réalisables en interne |Janvier 2025 |
+| **Cadre légal & API** | Identifier les contraintes RGPD et techniques liées aux données sociales | Rapport de 5 pages documenté | Essentiel pour la conformité du projet | Recherche faisable avec encadrement académique | Octobre 2025 |
+| **Livrables académiques** | Rédiger le dossier final et présenter le projet | Rapport complet (≥30 pages) + soutenance | Cohérent avec les attentes du PFE | Réalisable en équipe | Février 2026 |
 
 ---
 
 ## Fonctionnement du concept
 
 1. **Collecte des données d’intérêt**  
-   - Récupération (ou simulation) des données de likes / catégories / hashtags depuis TikTok ou Instagram.
+   - Récupération (ou simulation) des données de likes / catégories / hashtags depuis TikTok, Instagram ou X.
    - Anonymisation et respect du RGPD.
 
 2. **Algorithme de matching hybride**  
@@ -69,11 +69,11 @@ L’idée est donc de **repenser la rencontre** en utilisant les **likes, abonne
 
 | Phase | Description | Échéance |
 |-------|--------------|-----------|
-| **Janvier–Février 2025** | Recherche documentaire + cadrage API / RGPD | 28 février |
-| **Mars 2025** | Développement du prototype | 31 mars |
-| **Avril 2025** | Tests utilisateurs + itérations | 30 avril |
-| **Mai 2025** | Finalisation et corrections | 31 mai |
-| **Juin 2025** | Soutenance et rendu du rapport final | Juin |
+| **Septembre–Novembre 2025** | Recherche documentaire + cadrage API / RGPD |  1er décembre |
+| **Décembre 2025-Janvier 2026** | Développement du prototype | mi janvier |
+| **Janvier 2026** | Tests utilisateurs + itérations | mi janvier |
+| **Janvier 2026** | Finalisation et corrections | 31 janvier |
+| **février 2026** | Soutenance et rendu du rapport final | février |
 
 ---
 
