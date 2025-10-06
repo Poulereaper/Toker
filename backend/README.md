@@ -39,6 +39,8 @@ The Toker backend handles:
 | `API_server.py` | Django REST API endpoints | 🔄 Planned |
 | `cli.py` | **Command-line interface (Current Entry Point)** | ✅ Functional |
 
+*functionnal at a certain level
+
 ## 🚧 Current Status
 
 **Phase: Development (CLI Version)**
@@ -261,14 +263,3 @@ poetry add <package-name>
 - **Database**: Using SQLite for development; consider PostgreSQL for production
 - **Mocked Data**: All social media API calls return fake but properly formatted data
 - **CLI First**: The CLI is the primary interface during initial development
-
----
-
-## 📞 Support
-
-For questions or issues, please refer to the main project documentation or contact the development team.
-
----
-
-**Last Updated**: October 2025  
-**Version**: 0.1.0 (Development)
