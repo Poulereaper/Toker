@@ -91,19 +91,7 @@ L’idée est donc de **repenser la rencontre** en utilisant les **likes, abonne
 ## Lancer le projet (MVP)
 
 ```bash
-# 1. Cloner le dépôt
-git clone https://github.com/[votre-utilisateur]/connectly.git
-
-# 2. Installer les dépendances
-cd connectly
-pip install -r requirements.txt
-
-# 3. Lancer le backend
-uvicorn app.main:app --reload
-
-# 4. Lancer le frontend (si applicable)
-npm install
-npm run dev
+TO DO
 ```
 
 
