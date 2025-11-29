@@ -1,4 +1,3 @@
-
 # Database.py
 import sqlite3
 import json
@@ -9,10 +8,9 @@ import os
 class DatabaseManager:
     """Gestionnaire pour les opérations CRUD sur la base de données"""
     
-    def __init__(self, db_path: str = "toker.db"):
+    def __init__(self, db_path: str = "toker_users.db"):
         """
         Initialise le gestionnaire de base de données
-        
         Args:
             db_path: Chemin vers le fichier de base de données SQLite
         """
@@ -24,6 +22,7 @@ class DatabaseManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Ajout de la colonne vector_data pour stocker le profil vectoriel
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,6 +32,7 @@ class DatabaseManager:
                 user_pseudo TEXT,
                 verified BOOLEAN,
                 data JSON NOT NULL,
+                vector_data JSON,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(platform, social_user_id)
@@ -42,19 +42,17 @@ class DatabaseManager:
         conn.commit()
         conn.close()
     
-    def create_user(self, platform: str, user_data: Dict) -> Dict:
+    def create_user(self, platform: str, user_data: Dict, vector_data: Dict = None) -> Dict:
         """
         Crée un nouvel utilisateur dans la base de données
         
         Args:
             platform: Nom de la plateforme sociale
             user_data: Données complètes de l'utilisateur
+            vector_data: Données vectorisées (profil d'intérêt) - OPTIONNEL
         
         Returns:
             Dict contenant l'utilisateur créé avec son ID de base de données
-        
-        Raises:
-            sqlite3.IntegrityError: Si l'utilisateur existe déjà
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -63,16 +61,17 @@ class DatabaseManager:
             cursor.execute('''
                 INSERT INTO users (
                     platform, social_user_id, username, user_pseudo, 
-                    verified, data
+                    verified, data, vector_data
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
                 platform,
                 user_data["user_id"],
                 user_data["username"],
                 user_data.get("user_pseudo", ""),
                 user_data.get("verified", False),
-                json.dumps(user_data)
+                json.dumps(user_data),
+                json.dumps(vector_data) if vector_data else None  # Gestion du vecteur
             ))
             
             conn.commit()
@@ -88,15 +87,7 @@ class DatabaseManager:
             conn.close()
     
     def get_user(self, user_id: int) -> Optional[Dict]:
-        """
-        Récupère un utilisateur par son ID de base de données
-        
-        Args:
-            user_id: ID de l'utilisateur dans la base de données
-        
-        Returns:
-            Dict contenant les données de l'utilisateur ou None si non trouvé
-        """
+        """Récupère un utilisateur par son ID de base de données"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -113,12 +104,7 @@ class DatabaseManager:
             conn.close()
     
     def get_all_users(self) -> List[Dict]:
-        """
-        Récupère tous les utilisateurs de la base de données
-        
-        Returns:
-            Liste de dictionnaires contenant les données des utilisateurs
-        """
+        """Récupère tous les utilisateurs de la base de données"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -141,6 +127,48 @@ class DatabaseManager:
             "user_pseudo": row[4],
             "verified": bool(row[5]),
             "data": json.loads(row[6]),
-            "created_at": row[7],
-            "updated_at": row[8]
+            "vector_data": json.loads(row[7]) if row[7] else None,  # Récupération du vecteur
+            "created_at": row[8],
+            "updated_at": row[9]
         }
+
+    def delete_user(self, user_id: int) -> bool:
+        """Supprime un utilisateur par son ID"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            conn.close()
+
+    def delete_all_users(self) -> int:
+        """Supprime TOUS les utilisateurs de la base"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM users')
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
+    def update_user(self, user_id: int, user_data: Dict, vector_data: Dict) -> bool:
+        """Met à jour les données brutes et le vecteur d'un utilisateur existant"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                UPDATE users 
+                SET data = ?, vector_data = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (
+                json.dumps(user_data),
+                json.dumps(vector_data),
+                user_id
+            ))
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            conn.close()

@@ -1,39 +1,95 @@
-# cli.py
+# backend/cli.py
 import argparse
-import json
+import sys
 from core.API_geter import APIGetter, SocialPlatform
 from core.Database import DatabaseManager
+from core.Data_processing import DataProcessor
+from core.Auth_Service import AuthService
 
 def create_fake_user(platform: str, user_id: str = None):
-    """Crée un utilisateur fake et l'enregistre dans la base de données"""
+    """
+    Force la création d'un utilisateur (Admin/Test) sans passer par l'authentification.
+    Génère les données, calcule le vecteur et sauvegarde.
+    """
     try:
         platform_enum = SocialPlatform(platform.lower())
         
-        print(f"Génération de données pour {platform}...")
+        print(f"🔄 [FORCE CREATE] Génération de données pour {platform}...")
         api_getter = APIGetter()
+        # Si aucun user_id n'est fourni, l'API en générera un aléatoire
         user_data = api_getter.get_user_data(platform_enum, user_id)
         
-        print(f"Validation des données...")
+        print(f"🔍 Validation des données...")
         if not api_getter.validate_user_data(platform_enum, user_data):
-            print("❌ Les données ne respectent pas les critères minimum (100 likes requis)")
-            print(f"Nombre de likes: {user_data.get('number_of_likes', 0)}")
+            print("❌ Les données ne respectent pas les critères minimum (ex: 100 likes requis)")
+            print(f"   Nombre de likes trouvés: {user_data.get('number_of_likes', 0)}")
             return
         
-        print(f"Sauvegarde dans la base de données...")
+        print(f"🧠 Traitement & Vectorisation des données...")
+        processor = DataProcessor()
+        vector_data = processor.process_user_data(user_data)
+        
+        print(f"💾 Sauvegarde dans la base de données...")
         db_manager = DatabaseManager()
-        saved_user = db_manager.create_user(platform, user_data)
+        saved_user = db_manager.create_user(platform, user_data, vector_data)
         
         print(f"✅ Utilisateur créé avec succès!")
-        print(f"ID: {saved_user['id']}")
-        print(f"Username: {saved_user['username']}")
-        print(f"Likes: {user_data['number_of_likes']}")
-        print(f"Vidéos likées: {len(user_data['liked_videos'])}")
+        print(f"   ID DB: {saved_user['id']}")
+        print(f"   Username: {saved_user['username']}")
+        print(f"   Top Intérêts: {', '.join(vector_data['top_interests'])}")
         
     except Exception as e:
         print(f"❌ Erreur: {str(e)}")
 
+def simulate_login_flow(platform: str, username: str, password: str):
+    """
+    Simule le flux complet : Login -> Récupération -> Vectorisation -> Sauvegarde
+    """
+    print(f"\n🔐 Tentative de connexion à {platform.capitalize()} pour '{username}'...")
+    
+    # 1. Authentification
+    success, message = AuthService.mock_login(platform, {"username": username, "password": password})
+    
+    if not success:
+        print(f"❌ ÉCHEC AUTHENTIFICATION : {message}")
+        return
+
+    print(f"✅ Authentification réussie. Récupération du profil...")
+
+    try:
+        platform_enum = SocialPlatform(platform.lower())
+        
+        # 2. Récupération des données (Mock)
+        # On utilise le username comme seed/user_id pour que les données soient "liées" au pseudo
+        api_getter = APIGetter()
+        user_data = api_getter.get_user_data(platform_enum, user_id=username)
+        
+        # 3. Validation
+        if not api_getter.validate_user_data(platform_enum, user_data):
+            print(f"⚠️  Compte non éligible (Pas assez d'activité/likes).")
+            return
+
+        # 4. Vectorisation
+        print(f"🧠 Analyse du profil (Vectorisation)...")
+        processor = DataProcessor()
+        vector_data = processor.process_user_data(user_data)
+        
+        # 5. Sauvegarde
+        print(f"💾 Enregistrement du nouvel utilisateur...")
+        db_manager = DatabaseManager()
+        saved_user = db_manager.create_user(platform, user_data, vector_data)
+        
+        print(f"\n🎉 SUCCÈS ! Profil connecté et analysé.")
+        print(f"   ID DB: {saved_user['id']}")
+        print(f"   Intérêts détectés: {vector_data['top_interests']}")
+        print(f"   Score social: {vector_data['behavior_stats']['social_ratio']}")
+
+    except Exception as e:
+        print(f"❌ Erreur système lors du flux de connexion: {str(e)}")
+
+
 def list_users():
-    """Liste tous les utilisateurs de la base de données"""
+    """Liste tous les utilisateurs (Résumé)"""
     db_manager = DatabaseManager()
     users = db_manager.get_all_users()
     
@@ -47,13 +103,16 @@ def list_users():
     
     for user in users:
         data = user['data']
-        print(f"ID: {user['id']} | Platform: {user['platform']} | Username: {user['username']}")
-        print(f"  Likes: {data.get('number_of_likes', 0)} | Vidéos likées: {len(data.get('liked_videos', []))}")
-        print(f"  Créé le: {user['created_at']}")
+        # On essaie de récupérer les top intérêts s'ils existent (compatibilité avec vieux records)
+        vector = user.get('vector_data')
+        interests = ", ".join(vector['top_interests'][:3]) if vector else "N/A"
+        
+        print(f"ID: {user['id']} | {user['platform']:<10} | User: {user['username']:<20}")
+        print(f"   Likes: {data.get('number_of_likes', 0):<6} | Intérêts: {interests}")
         print()
 
 def list_users_full():
-    """Liste tous les utilisateurs avec TOUTES leurs données détaillées"""
+    """Liste détaillée avec affichage des vecteurs"""
     db_manager = DatabaseManager()
     users = db_manager.get_all_users()
     
@@ -67,119 +126,145 @@ def list_users_full():
     
     for user in users:
         data = user['data']
+        vector = user.get('vector_data') # Peut être None si vieilles données
         
-        # En-tête utilisateur
+        # En-tête
         print(f"┌{'─'*98}┐")
-        print(f"│ ID Base de données: {user['id']:<83}│")
-        print(f"│ Plateforme: {user['platform']:<88}│")
-        print(f"│ Créé le: {user['created_at']:<91}│")
+        print(f"│ ID: {str(user['id']):<4} | Plateforme: {user['platform']:<15} | Pseudo: {user['username']:<52}│")
         print(f"└{'─'*98}┘")
         
-        # Informations de profil
-        print(f"\n📱 PROFIL")
-        print(f"  • User ID (social): {data.get('user_id', 'N/A')}")
-        print(f"  • Username: {data.get('username', 'N/A')}")
-        print(f"  • Pseudo: {data.get('user_pseudo', 'N/A')}")
-        print(f"  • Vérifié: {'✓ Oui' if data.get('verified', False) else '✗ Non'}")
-        
-        # Statistiques
-        print(f"\n📊 STATISTIQUES")
-        print(f"  • Followers: {data.get('followers_count', 0):,}")
-        print(f"  • Following: {data.get('following_count', 0):,}")
-        print(f"  • Nombre de vidéos: {data.get('videos_count', 0):,}")
-        print(f"  • Total likes: {data.get('likes_count', 0):,}")
-        print(f"  • Likes sur vidéos perso: {data.get('number_of_likes_on_own_videos', 0):,}")
-        print(f"  • Nombre de likes donnés: {data.get('number_of_likes', 0):,}")
-        print(f"  • Nombre de commentaires: {data.get('number_of_comments', 0):,}")
-        print(f"  • Nombre de partages: {data.get('number_of_shares', 0):,}")
-        
-        # Vidéos likées
-        liked_videos = data.get('liked_videos', [])
-        print(f"\n❤️  VIDÉOS LIKÉES ({len(liked_videos)} vidéos)")
-        if liked_videos:
-            # Afficher les 5 premières en détail
-            for i, video in enumerate(liked_videos[:5], 1):
-                print(f"  {i}. Video ID: {video.get('video_id', 'N/A')}")
-                if 'categories' in video:
-                    print(f"     Catégories: {', '.join(video['categories'])}")
-                if 'hashtags' in video:
-                    print(f"     Hashtags: {', '.join(video['hashtags'])}")
-                print(f"     Likes: {video.get('likes', 0):,} | Comments: {video.get('comments', 0):,} | Shares: {video.get('shares', 0):,}")
+        # 1. Vector Data (La partie importante pour le matching)
+        if vector:
+            print(f"\n🧠 PROFIL VECTORIEL (Analyse IA)")
+            print(f"  • Top Intérêts: {', '.join(vector.get('top_interests', []))}")
+            stats = vector.get('behavior_stats', {})
+            print(f"  • Ratio Social: {stats.get('social_ratio', 'N/A')} (Followers/Following)")
             
-            if len(liked_videos) > 5:
-                print(f"  ... et {len(liked_videos) - 5} autres vidéos")
-            
-            # Statistiques sur les catégories
-            categories = {}
-            hashtags = {}
-            for video in liked_videos:
-                for cat in video.get('categories', []):
-                    categories[cat] = categories.get(cat, 0) + 1
-                for tag in video.get('hashtags', []):
-                    hashtags[tag] = hashtags.get(tag, 0) + 1
-            
-            if categories:
-                top_categories = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:5]
-                print(f"\n  📈 Top 5 catégories:")
-                for cat, count in top_categories:
-                    print(f"     • {cat}: {count} vidéos")
-            
-            if hashtags:
-                top_hashtags = sorted(hashtags.items(), key=lambda x: x[1], reverse=True)[:5]
-                print(f"\n  🏷️  Top 5 hashtags:")
-                for tag, count in top_hashtags:
-                    print(f"     • {tag}: {count} vidéos")
+            # Affichage graphique simple du vecteur
+            print(f"  • Aperçu du vecteur (valeurs non-nulles):")
+            interest_vec = vector.get('interest_vector', [])
+            # On récupère les catégories depuis le processeur pour l'affichage (astuce)
+            # Dans un cas réel, on stockerait les labels ou on les importerait
+            # Ici on affiche juste les indices non nuls pour vérifier que ça marche
+            non_zeros = [(i, v) for i, v in enumerate(interest_vec) if v > 0]
+            non_zeros.sort(key=lambda x: x[1], reverse=True)
+            for idx, val in non_zeros[:5]:
+                print(f"    - Catégorie index {idx}: {val:.2%}")
         else:
-            print("  Aucune vidéo likée")
+            print(f"\n⚠️  PAS DE DONNÉES VECTORIELLES (Ancien format)")
+
+        # 2. Stats brutes
+        print(f"\n📊 STATISTIQUES BRUTES")
+        print(f"  • Followers: {data.get('followers_count', 0):,} | Following: {data.get('following_count', 0):,}")
+        print(f"  • Likes reçus: {data.get('number_of_likes', 0):,} | Vidéos likées: {len(data.get('liked_videos', []))}")
         
-        # Vidéos partagées
-        shared_videos = data.get('shared_videos', [])
-        print(f"\n🔄 VIDÉOS PARTAGÉES ({len(shared_videos)} vidéos)")
-        if shared_videos:
-            # Afficher les 3 premières en détail
-            for i, video in enumerate(shared_videos[:3], 1):
-                print(f"  {i}. Video ID: {video.get('video_id', 'N/A')}")
-                if 'categories' in video:
-                    print(f"     Catégories: {', '.join(video['categories'])}")
-                print(f"     Likes: {video.get('likes', 0):,} | Comments: {video.get('comments', 0):,} | Shares: {video.get('shares', 0):,}")
+        # 3. Contenu (Vidéos likées) - Résumé
+        liked = data.get('liked_videos', [])
+        print(f"\n❤️  CONTENU APPRÉCIÉ ({len(liked)} items)")
+        if liked:
+            # On affiche juste les catégories des 3 premières vidéos pour vérifier le parsing
+            for i, vid in enumerate(liked[:3]):
+                cats = vid.get('categories', [])
+                print(f"  {i+1}. {vid.get('video_id')} -> Tags: {cats}")
+            if len(liked) > 3: print(f"  ... (+ {len(liked)-3} autres)")
             
-            if len(shared_videos) > 3:
-                print(f"  ... et {len(shared_videos) - 3} autres vidéos")
-        else:
-            print("  Aucune vidéo partagée")
+        print(f"\n{'='*100}\n")
+def delete_user_cmd(user_id: int):
+    """Supprime un utilisateur spécifique"""
+    print(f"🗑️  Suppression de l'utilisateur ID {user_id}...")
+    db = DatabaseManager()
+    if db.delete_user(user_id):
+        print(f"✅ Utilisateur {user_id} supprimé avec succès.")
+    else:
+        print(f"❌ Utilisateur {user_id} introuvable.")
+
+def delete_all_cmd():
+    """Supprime tous les utilisateurs"""
+    confirm = input("⚠️  ATTENTION: Vous allez supprimer TOUS les utilisateurs. Confirmer ? (y/N): ")
+    if confirm.lower() != 'y':
+        print("Annulé.")
+        return
+
+    db = DatabaseManager()
+    count = db.delete_all_users()
+    print(f"💥 Base de données nettoyée. {count} utilisateurs supprimés.")
+
+def refresh_user_cmd(user_id: int):
+    """Met à jour les données d'un utilisateur existant"""
+    print(f"🔄 Mise à jour du profil utilisateur ID {user_id}...")
+    
+    db = DatabaseManager()
+    user = db.get_user(user_id)
+    
+    if not user:
+        print(f"❌ Utilisateur {user_id} introuvable.")
+        return
+
+    try:
+        # Récupération des infos existantes
+        platform = user['platform']
+        username = user['username']
+        print(f"   Cible: {username} sur {platform}")
+
+        # Regénération des données
+        print("   📡 Récupération des nouvelles données mockées...")
+        api = APIGetter()
+        new_data = api.get_user_data(SocialPlatform(platform), user_id=username)
         
-        # Données brutes (JSON)
-        print(f"\n📄 DONNÉES BRUTES (JSON)")
-        print(f"  Voir le dump complet ci-dessous:")
-        print(f"  {'-'*96}")
-        print(json.dumps(data, indent=2, ensure_ascii=False))
-        
-        print(f"\n{'='*100}\n\n")
+        print("   🧠 Recalcul du vecteur d'intérêts...")
+        processor = DataProcessor()
+        new_vector = processor.process_user_data(new_data)
+
+        # Sauvegarde
+        db.update_user(user_id, new_data, new_vector)
+        print(f"✅ Profil mis à jour !")
+        print(f"   Nouveaux intérêts majeurs: {', '.join(new_vector['top_interests'])}")
+
+    except Exception as e:
+        print(f"❌ Erreur lors du refresh: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="CLI Toker - Génération d'utilisateurs fake")
+    parser = argparse.ArgumentParser(description="CLI Toker - Admin Interface")
     subparsers = parser.add_subparsers(dest="command", help="Commandes disponibles")
     
-    # Commande create
-    create_parser = subparsers.add_parser("create", help="Créer un utilisateur fake")
-    create_parser.add_argument("platform", choices=["tiktok", "instagram", "x"], 
-                              help="Plateforme sociale")
-    create_parser.add_argument("--user-id", help="ID utilisateur spécifique (optionnel)")
+    # Commandes existantes
+    create_parser = subparsers.add_parser("create", help="Créer un user manuellement")
+    create_parser.add_argument("platform", choices=["tiktok", "instagram", "x"])
+    create_parser.add_argument("--user-id", help="ID Custom")
     
-    # Commande list
-    list_parser = subparsers.add_parser("list", help="Lister tous les utilisateurs (résumé)")
+    login_parser = subparsers.add_parser("login", help="Simuler connexion")
+    login_parser.add_argument("platform", choices=["tiktok", "instagram", "x"])
+    login_parser.add_argument("username")
+    login_parser.add_argument("password")
+
+    subparsers.add_parser("list", help="Lister simple")
+    subparsers.add_parser("listfull", help="Lister complet")
     
-    # Commande listfull (NOUVELLE)
-    listfull_parser = subparsers.add_parser("listfull", help="Lister tous les utilisateurs avec toutes leurs données")
-    
+    # NOUVELLES COMMANDES ADMIN
+    del_parser = subparsers.add_parser("delete", help="Supprimer un utilisateur")
+    del_parser.add_argument("id", type=int, help="ID de l'utilisateur (DB ID)")
+
+    subparsers.add_parser("delete-all", help="Supprimer TOUS les utilisateurs")
+
+    refresh_parser = subparsers.add_parser("refresh", help="Regénérer les données d'un utilisateur")
+    refresh_parser.add_argument("id", type=int, help="ID de l'utilisateur (DB ID)")
+
     args = parser.parse_args()
     
     if args.command == "create":
         create_fake_user(args.platform, args.user_id)
+    elif args.command == "login":
+        simulate_login_flow(args.platform, args.username, args.password)
     elif args.command == "list":
         list_users()
     elif args.command == "listfull":
         list_users_full()
+    elif args.command == "delete":
+        delete_user_cmd(args.id)
+    elif args.command == "delete-all":
+        delete_all_cmd()
+    elif args.command == "refresh":
+        refresh_user_cmd(args.id)
     else:
         parser.print_help()
 

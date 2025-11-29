@@ -52,8 +52,8 @@ def get_mock_tiktok_data(user_id: str = None) -> Dict:
         user_id = str(random.randint(100000, 999999))
     
     # Génération des compteurs
-    followers_count = random.randint(500, 50000)
-    following_count = random.randint(100, 5000)
+    followers_count = random.randint(0, 500)
+    following_count = random.randint(100, 1000)
     videos_count = random.randint(50, 500)
     
     # Génération du nombre de likes (minimum 100 pour validation)
