@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../models/profile.dart';
 import '../models/prompt.dart';
-import '../services/mock_data_service.dart';
+import '../models/prompt.dart';
+import '../services/auth_service.dart';
+import '../services/profile_service.dart';
 import 'onboarding_photos_screen.dart';
 import 'onboarding_prompts_screen.dart';
 
@@ -14,74 +16,140 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  final mockService = MockDataService();
+  final _profileService = ProfileService();
+  final _authService = AuthService();
+  
+  Profile? _profile;
+  bool _isLoading = true;
+
   late TextEditingController _bioController;
   late List<String> _selectedInterests;
   late String _interestedIn;
   
   final List<String> _allInterests = [
-    'Sport', 'Musique', 'Cinéma', 'Voyages', 'Cuisine',
-    'Lecture', 'Gaming', 'Art', 'Photographie', 'Danse',
-    'Yoga', 'Randonnée', 'Technologie', 'Mode', 'Animaux',
-    'Café', 'Vin', 'Bière', 'Festivals', 'Concerts',
-    'Théâtre', 'Séries', 'Podcasts', 'Méditation', 'Fitness',
+    'Voyage', 'Cuisine', 'Cinéma', 'Musique', 'Sport',
+    'Lecture', 'Gaming', 'Art', 'Tech', 'Mode',
+    'Aventure', 'Animaux', 'Photographie', 'Danse', 'Festivals'
   ];
+
+  final Map<String, String> _interestEmojis = {
+    'Voyage': '✈️', 'Cuisine': '🍳', 'Cinéma': '🎬', 'Musique': '🎵', 'Sport': '🏃',
+    'Lecture': '📚', 'Gaming': '🎮', 'Art': '🎨', 'Tech': '💻', 'Mode': '👗',
+    'Aventure': '🌿', 'Animaux': '🐶', 'Photographie': '📸', 'Danse': '💃', 'Festivals': '🎉'
+  };
 
   @override
   void initState() {
     super.initState();
-    final profile = mockService.currentUser;
-    _bioController = TextEditingController(text: profile.bio);
-    _selectedInterests = List.from(profile.interests);
-    _interestedIn = profile.interestedIn;
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final userId = await _authService.getUserId();
+    if (userId != null) {
+      try {
+        final profile = await _profileService.getCurrentUser(userId);
+        setState(() {
+          _profile = profile;
+          _bioController = TextEditingController(text: profile.bio);
+          _selectedInterests = List.from(profile.interests);
+          _interestedIn = profile.interestedIn;
+          _isLoading = false;
+        });
+      } catch (e) {
+        print('Error loading profile: $e');
+        // Handle error (maybe pop)
+      }
+    }
   }
 
   @override
   void dispose() {
-    _bioController.dispose();
+    if (_profile != null) _bioController.dispose();
     super.dispose();
   }
 
-  void _saveProfile() {
-    final updatedProfile = mockService.currentUser.copyWith(
+  void _saveProfile() async {
+    if (_profile == null) return;
+
+    final updatedProfile = _profile!.copyWith(
       bio: _bioController.text,
       interests: _selectedInterests,
       interestedIn: _interestedIn,
     );
     
-    mockService.updateCurrentUser(updatedProfile);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Profil mis à jour !'),
-        backgroundColor: AppColors.neonTeal,
-      ),
-    );
-    
-    Navigator.pop(context);
+    try {
+      await _authService.saveUserProfile(updatedProfile);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profil mis à jour !'),
+            backgroundColor: AppColors.neonTeal,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: AppColors.neonRed,
+          ),
+        );
+      }
+    }
   }
 
-  void _editPhotos() {
-    Navigator.push(
+  void _editPhotos() async {
+    if (_profile == null) return;
+    final updatedProfile = await Navigator.push<Profile>(
       context,
       MaterialPageRoute(
-        builder: (context) => OnboardingPhotosScreen(profile: mockService.currentUser),
+        builder: (context) => OnboardingPhotosScreen(
+          profile: _profile!,
+          isEditing: true,
+        ),
       ),
     );
+
+    if (updatedProfile != null && mounted) {
+      setState(() {
+        _profile = updatedProfile;
+      });
+    }
   }
 
-  void _editPrompts() {
-    Navigator.push(
+  void _editPrompts() async {
+    if (_profile == null) return;
+    final updatedProfile = await Navigator.push<Profile>(
       context,
       MaterialPageRoute(
-        builder: (context) => OnboardingPromptsScreen(profile: mockService.currentUser),
+        builder: (context) => OnboardingPromptsScreen(
+          profile: _profile!,
+          isEditing: true,
+        ),
       ),
     );
+
+    if (updatedProfile != null && mounted) {
+      setState(() {
+        _profile = updatedProfile;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final profile = mockService.currentUser;
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator(color: AppColors.neonTeal)),
+      );
+    }
+
+    final profile = _profile!;
     
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -258,7 +326,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ),
                     child: Text(
-                      interest,
+                      '${interest} ${_interestEmojis[interest] ?? ""}',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,

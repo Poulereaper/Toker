@@ -8,8 +8,33 @@ import 'home_screen.dart';
 import 'onboarding_step1_screen.dart';
 import 'tiktok_loading_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final authService = AuthService();
+    final userId = await authService.getUserId();
+    
+    if (userId != null && mounted) {
+      // User is already logged in, redirect to Home
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,18 +151,28 @@ class LoginScreen extends StatelessWidget {
                             isSignUp: true,
                             onIdReceived: (id) async {
                               final authService = AuthService();
-                              final isNewUser = await authService.simulateTikTokAuth(id);
-                              
-                              if (context.mounted) {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => isNewUser 
-                                        ? const OnboardingStep1Screen() 
-                                        : const HomeScreen(),
-                                  ),
-                                  (route) => false,
-                                );
+                              try {
+                                // Pass forceNewUser: true for explicit Sign Up action
+                                final isNewUser = await authService.simulateTikTokAuth(id, forceNewUser: true);
+                                
+                                if (context.mounted) {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => isNewUser 
+                                          ? const OnboardingStep1Screen() 
+                                          : const HomeScreen(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  Navigator.pop(context); // Close loading screen
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+                                  );
+                                }
                               }
                             },
                           ),

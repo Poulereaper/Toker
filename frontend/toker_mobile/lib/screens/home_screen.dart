@@ -12,6 +12,7 @@ import 'profile_screen.dart';
 import 'likes_screen.dart';
 import 'standouts_screen.dart';
 import 'profile_detail_screen.dart';
+import 'onboarding_step1_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,29 +42,55 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadProfiles() async {
     setState(() => _isLoading = true);
     
-    // Get current user ID (simulated)
-    final userId = await _authService.getUserId() ?? 'user_1';
+    // Get current user ID (Supabase Auth)
+    final userId = await _authService.getUserId();
+
+    if (userId == null) {
+       // Not authenticated, redirect to Login
+       if (mounted) {
+         Navigator.pushReplacementNamed(context, '/login'); // Ensure route exists or push logic
+         // Fallback manual push if route not named
+         /* Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())); */
+       }
+       return;
+    }
     
     // Load current user profile
-    final currentUser = await _profileService.getCurrentUser(userId);
-    
-    // Load profiles from service
-    final profiles = await _profileService.getDiscoverProfiles(userId);
-    
-    if (mounted) {
-      setState(() {
-        _currentUser = currentUser;
-        _profiles = profiles;
-        _isLoading = false;
-        _currentProfileIndex = 0;
-      });
+    try {
+      final currentUser = await _profileService.getCurrentUser(userId);
+      final profiles = await _profileService.getDiscoverProfiles(userId);
+      
+      if (mounted) {
+        setState(() {
+          _currentUser = currentUser;
+          _profiles = profiles;
+          _isLoading = false;
+          _currentProfileIndex = 0;
+        });
+      }
+    } catch (e) {
+      print('❌ HomeScreen loading error: $e');
+      
+      // Check if error is "Profile not found"
+      if (e.toString().contains('Profil utilisateur non trouvé')) {
+         print('⚠️ Profile missing, redirecting to Onboarding...');
+         if (mounted) {
+           Navigator.pushReplacement(
+             context, 
+             MaterialPageRoute(builder: (context) => const OnboardingStep1Screen())
+           );
+         }
+         return;
+      }
+      
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _onSwipe(SwipeAction action) async {
     final profile = _profiles[_currentProfileIndex];
-    final currentUserData = await _profileService.getProfile('current_user'); // Temporary for compatibility
-    final currentUserId = await _authService.getUserId() ?? 'user_1';
+    final currentUserId = await _authService.getUserId();
+    if (currentUserId == null) return;
     
     // Record the swipe via service
     final match = await _matchService.swipe(
@@ -167,24 +194,33 @@ class _HomeScreenState extends State<HomeScreen> {
                         });
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.cream,
+                        foregroundColor: AppColors.textSecondary,
                         side: const BorderSide(color: AppColors.textSecondary),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text('Continuer'),
+                      child: const Text('Plus tard'),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.pop(context);
                         setState(() {
-                          _currentIndex = 2; // Go to matches
                           _showConfetti = false;
+                        });
+                        
+                        // Fetch the match object again if needed or use the one from swipe
+                        // The localized _onSwipe function doesn't easily pass the match object here
+                        // without refactoring _showMatchDialog params.
+                        // For now, we'll navigate to the Matches tab (Index 3)
+                        // Or better: pass match to _showMatchDialog?
+                        
+                        setState(() {
+                            _currentIndex = 3; // Correct index for MatchesScreen
                         });
                       },
                       style: ElevatedButton.styleFrom(
@@ -195,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text('Envoyer un message'),
+                      child: const Text('Discuter'),
                     ),
                   ),
                 ],
@@ -372,6 +408,7 @@ class _HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(
             builder: (context) => ProfileDetailScreen(
               profile: profile,
+              currentUser: _currentUser,
               onLike: () => _onSwipe(SwipeAction.like),
               onNope: () => _onSwipe(SwipeAction.nope),
               onSuperLike: () => _onSwipe(SwipeAction.superlike),
@@ -437,8 +474,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
+                    // Gender & Location
                     Row(
                       children: [
+                        Icon(
+                           profile.gender == 'Male' ? Icons.male : 
+                           profile.gender == 'Female' ? Icons.female : Icons.transgender,
+                          color: AppColors.neonTeal,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            profile.gender == 'Male' ? 'Homme' : 
+                            profile.gender == 'Female' ? 'Femme' : 'Non-binaire',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.neonTeal,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                         const SizedBox(width: 12),
                         const Icon(Icons.location_on, color: AppColors.textSecondary, size: 16),
                         const SizedBox(width: 4),
                         Text(

@@ -234,8 +234,8 @@ class _StandoutsScreenState extends State<StandoutsScreen> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
               child: Stack(
                 children: [
-                  Image.network(
-                    profile.photos.first,
+                   Image.network(
+                    profile.photos.isNotEmpty ? profile.photos.first : '',
                     height: 300,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -301,13 +301,39 @@ class _StandoutsScreenState extends State<StandoutsScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          '${profile.name}, ${profile.age}',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.cream,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${profile.name}, ${profile.age}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.cream,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  profile.gender == 'Male' ? Icons.male : 
+                                  profile.gender == 'Female' ? Icons.female : Icons.transgender,
+                                  color: AppColors.neonTeal,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  profile.gender == 'Male' ? 'Homme' : 
+                                  profile.gender == 'Female' ? 'Femme' : 'Non-binaire',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.neonTeal,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],

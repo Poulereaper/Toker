@@ -17,47 +17,47 @@ class OnboardingInterestsScreen extends StatefulWidget {
 }
 
 class _OnboardingInterestsScreenState extends State<OnboardingInterestsScreen> {
-  final mockService = MockDataService();
-  late List<String> _detectedInterests;
-  late List<String> _removedInterests;
-  int _maxRemovable = 2;
+  // Curated list of 15 interests
+  // Curated list of 15 interests (Values must match DB)
+  final List<String> _curatedInterests = [
+    'Voyage', 'Cuisine', 'Cinéma', 'Musique', 'Sport',
+    'Lecture', 'Gaming', 'Art', 'Tech', 'Mode',
+    'Aventure', 'Animaux', 'Photographie', 'Danse', 'Festivals'
+  ];
+
+  final Map<String, String> _interestEmojis = {
+    'Voyage': '✈️', 'Cuisine': '🍳', 'Cinéma': '🎬', 'Musique': '🎵', 'Sport': '🏃',
+    'Lecture': '📚', 'Gaming': '🎮', 'Art': '🎨', 'Tech': '💻', 'Mode': '👗',
+    'Aventure': '🌿', 'Animaux': '🐶', 'Photographie': '📸', 'Danse': '💃', 'Festivals': '🎉'
+  };
+
+  late List<String> _selectedInterests;
+  final int _minInterests = 4;
+  final int _maxInterests = 8;
 
   @override
   void initState() {
     super.initState();
-    // Simulate "auto-detected" interests (5-7 random interests)
-    _detectedInterests = _generateAutoDetectedInterests();
-    _removedInterests = [];
-  }
-
-  List<String> _generateAutoDetectedInterests() {
-    final allInterests = mockService.allInterests;
-    final count = 5 + (widget.profile.id.hashCode % 3); // 5-7 interests
-    final selected = <String>[];
+    _selectedInterests = [];
     
-    while (selected.length < count && selected.length < allInterests.length) {
-      final interest = allInterests[(widget.profile.id.hashCode + selected.length) % allInterests.length];
-      if (!selected.contains(interest)) {
-        selected.add(interest);
-      }
-    }
-    
-    return selected;
+    // Randomly pre-select 4 interests
+    final shuffled = List<String>.from(_curatedInterests)..shuffle();
+    _selectedInterests = shuffled.take(_minInterests).toList();
   }
 
   void _toggleInterest(String interest) {
     setState(() {
-      if (_removedInterests.contains(interest)) {
-        _removedInterests.remove(interest);
+      if (_selectedInterests.contains(interest)) {
+        _selectedInterests.remove(interest);
       } else {
-        if (_removedInterests.length < _maxRemovable) {
-          _removedInterests.add(interest);
+        if (_selectedInterests.length < _maxInterests) {
+          _selectedInterests.add(interest);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Tu peux retirer maximum $_maxRemovable centres d\'intérêt'),
+              content: Text('Maximum $_maxInterests centres d\'intérêt'),
               backgroundColor: AppColors.neonRed,
-              duration: const Duration(seconds: 2),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -65,98 +65,19 @@ class _OnboardingInterestsScreenState extends State<OnboardingInterestsScreen> {
     });
   }
 
-  void _addInterest() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.cardBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        final availableToAdd = mockService.allInterests
-            .where((i) => !_detectedInterests.contains(i))
-            .toList();
-
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Ajouter un centre d\'intérêt',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.cream,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 2.5,
-                  ),
-                  itemCount: availableToAdd.length,
-                  itemBuilder: (context, index) {
-                    final interest = availableToAdd[index];
-                    return GestureDetector(
-                      onTap: () {
-                        final currentCount = _detectedInterests.length;
-                        if (currentCount >= 8) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Maximum 8 centres d\'intérêt'),
-                              backgroundColor: AppColors.neonRed,
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                          Navigator.pop(context);
-                        } else {
-                          setState(() {
-                            _detectedInterests.add(interest);
-                          });
-                          Navigator.pop(context);
-                        }
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.neonTeal.withOpacity(0.2),
-                          border: Border.all(color: AppColors.neonTeal, width: 1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Center(
-                          child: Text(
-                            interest,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.neonTeal,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+  void _continue() {
+    if (_selectedInterests.length < _minInterests) {
+       ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sélectionne au moins $_minInterests centres d\'intérêt'),
+            backgroundColor: AppColors.neonRed,
           ),
         );
-      },
-    );
-  }
-
-  void _continue() {
-    final finalInterests = _detectedInterests
-        .where((i) => !_removedInterests.contains(i))
-        .toList();
+        return;
+    }
 
     final updatedProfile = widget.profile.copyWith(
-      interests: finalInterests,
+      interests: _selectedInterests,
     );
 
     Navigator.push(
@@ -169,10 +90,6 @@ class _OnboardingInterestsScreenState extends State<OnboardingInterestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeInterests = _detectedInterests
-        .where((i) => !_removedInterests.contains(i))
-        .length;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -190,46 +107,79 @@ class _OnboardingInterestsScreenState extends State<OnboardingInterestsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Tes centres d\'intérêt',
+                'Tes Passions',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: AppColors.cream,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
+              
+              // TikTok Analysis Banner
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.neonTeal.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.neonTeal.withOpacity(0.3)),
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF00f2ea).withOpacity(0.2), // TikTok Cyan
+                      const Color(0xFFff0050).withOpacity(0.2), // TikTok Red
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.auto_awesome, color: AppColors.neonTeal, size: 20),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Voici tes centres d\'intérêt détectés automatiquement',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.cream.withOpacity(0.9),
-                        ),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Analyse TikTok terminée',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Ces intérêts matchent avec ton profil viral',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
+              
               Text(
-                'Tu peux en retirer jusqu\'à $_maxRemovable ou en ajouter',
+                'Sélectionnes-en entre $_minInterests et $_maxInterests',
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   color: AppColors.textSecondary,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               
               // Interests grid
               Expanded(
@@ -238,74 +188,34 @@ class _OnboardingInterestsScreenState extends State<OnboardingInterestsScreen> {
                     crossAxisCount: 3,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 2.5,
+                    childAspectRatio: 2.2,
                   ),
-                  itemCount: _detectedInterests.length + 1, // +1 for add button
+                  itemCount: _curatedInterests.length,
                   itemBuilder: (context, index) {
-                    if (index == _detectedInterests.length) {
-                      // Add button
-                      return GestureDetector(
-                        onTap: _addInterest,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.cardBackground,
-                            border: Border.all(
-                              color: AppColors.neonTeal,
-                              width: 2,
-                              style: BorderStyle.solid,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.add, color: AppColors.neonTeal, size: 24),
-                          ),
-                        ),
-                      );
-                    }
-
-                    final interest = _detectedInterests[index];
-                    final isRemoved = _removedInterests.contains(interest);
+                    final interest = _curatedInterests[index];
+                    final isSelected = _selectedInterests.contains(interest);
                     
                     return GestureDetector(
                       onTap: () => _toggleInterest(interest),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: isRemoved 
-                              ? AppColors.cardBackground
-                              : AppColors.neonRed.withOpacity(0.2),
+                          color: isSelected ? AppColors.neonTeal.withOpacity(0.2) : AppColors.cardBackground,
                           border: Border.all(
-                            color: isRemoved 
-                                ? AppColors.textSecondary.withOpacity(0.3)
-                                : AppColors.neonRed,
-                            width: isRemoved ? 1 : 2,
+                            color: isSelected ? AppColors.neonTeal : AppColors.textSecondary.withOpacity(0.3),
+                            width: isSelected ? 2 : 1,
                           ),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Stack(
-                          children: [
-                            Center(
-                              child: Text(
-                                interest,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: isRemoved ? FontWeight.normal : FontWeight.bold,
-                                  color: isRemoved ? AppColors.textSecondary : AppColors.neonRed,
-                                  decoration: isRemoved ? TextDecoration.lineThrough : null,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
+                        child: Center(
+                          child: Text(
+                            '${interest} ${_interestEmojis[interest] ?? ""}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? AppColors.neonTeal : AppColors.cream,
                             ),
-                            if (isRemoved)
-                              Positioned(
-                                top: 4,
-                                right: 4,
-                                child: Icon(
-                                  Icons.close,
-                                  size: 16,
-                                  color: AppColors.textSecondary.withOpacity(0.5),
-                                ),
-                              ),
-                          ],
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
                     );
@@ -318,10 +228,10 @@ class _OnboardingInterestsScreenState extends State<OnboardingInterestsScreen> {
               // Count
               Center(
                 child: Text(
-                  '$activeInterests centres d\'intérêt sélectionnés',
+                  '${_selectedInterests.length} / $_maxInterests sélectionnés',
                   style: TextStyle(
                     fontSize: 14,
-                    color: activeInterests >= 3 
+                    color: _selectedInterests.length >= _minInterests 
                         ? AppColors.neonTeal 
                         : AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -336,7 +246,7 @@ class _OnboardingInterestsScreenState extends State<OnboardingInterestsScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: activeInterests >= 3 ? _continue : null,
+                  onPressed: _selectedInterests.length >= _minInterests ? _continue : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.neonRed,
                     foregroundColor: AppColors.cream,

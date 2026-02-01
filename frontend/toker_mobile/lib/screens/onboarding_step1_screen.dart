@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../models/profile.dart';
 import '../services/mock_data_service.dart';
 import 'onboarding_interests_screen.dart';
 
@@ -13,6 +14,7 @@ class OnboardingStep1Screen extends StatefulWidget {
 class _OnboardingStep1ScreenState extends State<OnboardingStep1Screen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _bioController = TextEditingController();
   DateTime? _birthdate;
   String _selectedGender = 'Male';
   String _interestedIn = 'Women';
@@ -20,6 +22,7 @@ class _OnboardingStep1ScreenState extends State<OnboardingStep1Screen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _bioController.dispose();
     super.dispose();
   }
 
@@ -107,23 +110,33 @@ class _OnboardingStep1ScreenState extends State<OnboardingStep1Screen> {
 
       if (confirmed != true) return;
 
-      // Update current user profile
+      // Create fresh profile
       final mockService = MockDataService();
-      final updatedProfile = mockService.currentUser.copyWith(
+      final newProfile = Profile(
+        id: mockService.currentUser.id, // Keep ID from auth/mock
         name: _nameController.text,
         age: _age!,
         birthdate: _birthdate,
         gender: _selectedGender,
         interestedIn: _interestedIn,
+        bio: _bioController.text.trim(),
+        location: 'Paris, France', // Default or fetch
+        photos: [], // Start empty
+        interests: [], // Start empty
+        prompts: [], // Start empty
+        photoCaptions: {},
       );
       
-      // Save the updated profile
-      mockService.updateCurrentUser(updatedProfile);
+      // Update the singleton with this fresh profile
+      mockService.updateCurrentUser(newProfile);
+      
+      // Save done above
+
       
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => OnboardingInterestsScreen(profile: updatedProfile),
+          builder: (context) => OnboardingInterestsScreen(profile: newProfile),
         ),
       );
     }
@@ -355,6 +368,19 @@ class _OnboardingStep1ScreenState extends State<OnboardingStep1Screen> {
                     ],
                   ),
                   
+                  const SizedBox(height: 24),
+
+                  // Bio
+                  _buildLabel('Ma Bio'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    controller: _bioController,
+                    hint: 'Dis-nous en plus sur toi...',
+                    keyboardType: TextInputType.multiline,
+                    maxLines: 3,
+                    maxLength: 150,
+                  ),
+                  
                   const SizedBox(height: 40),
                   
                   // Continue button
@@ -405,11 +431,15 @@ class _OnboardingStep1ScreenState extends State<OnboardingStep1Screen> {
     required String hint,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    int maxLines = 1,
+    int? maxLength,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
+      maxLines: maxLines,
+      maxLength: maxLength,
       style: const TextStyle(color: AppColors.cream),
       decoration: InputDecoration(
         hintText: hint,

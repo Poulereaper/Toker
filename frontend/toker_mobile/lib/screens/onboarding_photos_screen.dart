@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../models/profile.dart';
 import '../models/prompt.dart';
@@ -6,10 +7,12 @@ import 'onboarding_prompts_screen.dart';
 
 class OnboardingPhotosScreen extends StatefulWidget {
   final Profile profile;
+  final bool isEditing;
 
   const OnboardingPhotosScreen({
     super.key,
     required this.profile,
+    this.isEditing = false,
   });
 
   @override
@@ -17,10 +20,20 @@ class OnboardingPhotosScreen extends StatefulWidget {
 }
 
 class _OnboardingPhotosScreenState extends State<OnboardingPhotosScreen> {
-  final List<String?> _photos = List.filled(6, null);
-  final Map<int, Prompt?> _photoCaptions = {}; // Photo index -> Caption
-  final int _minPhotos = 3;
+  final List<String?> _photos = List.filled(6, null); // Initialize with nulls
+  final Map<int, String> _photoCaptions = {}; // Changed to simple String
+  final int _minPhotos = 2; // Min photos required
   final int _maxPhotos = 6;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize photos from profile if editing or if they exist
+    for (int i = 0; i < widget.profile.photos.length && i < _maxPhotos; i++) {
+        _photos[i] = widget.profile.photos[i];
+    }
+    // Note: handling captions restoration would require parsing them back, skipping for MVP/Stability
+  }
 
   void _addPhoto(int index) {
     setState(() {
@@ -40,43 +53,77 @@ class _OnboardingPhotosScreenState extends State<OnboardingPhotosScreen> {
   void _addCaption(int photoIndex) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.cardBackground,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.5,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Expanded(
+                  child: FutureBuilder<List<Map<String, dynamic>>>(
+                    future: Supabase.instance.client
+                        .from('prompts')
+                        .select('question')
+                        .eq('category', 'photoCaption')
+                        .order('question', ascending: true),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator(color: AppColors.neonTeal));
+                      }
+                      
+                      final captions = snapshot.data!;
+                      return ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: captions.length,
+                        itemBuilder: (context, index) {
+                          final text = captions[index]['question'] as String;
+                          return _buildCaptionOption(photoIndex, text);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.9,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (context, scrollController) {
-            return _PhotoCaptionSelector(
-              scrollController: scrollController,
-              usedQuestions: _photoCaptions.values
-                  .where((p) => p != null)
-                  .map((p) => p!.question)
-                  .toList(),
-              onSelected: (prompt) {
-                setState(() {
-                  _photoCaptions[photoIndex] = prompt;
-                });
-                Navigator.pop(context);
-              },
-              onRemove: () {
-                setState(() {
-                  _photoCaptions.remove(photoIndex);
-                });
-                Navigator.pop(context);
-              },
-              hasCaption: _photoCaptions.containsKey(photoIndex),
-            );
-          },
-        );
-      },
     );
   }
+
+  Widget _buildCaptionOption(int index, String text) {
+    return ListTile(
+      title: Text(
+        text,
+        style: const TextStyle(color: AppColors.cream, fontSize: 16),
+      ),
+      trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textSecondary, size: 16),
+      onTap: () {
+        setState(() {
+          _photoCaptions[index] = text;
+        });
+        Navigator.pop(context);
+      },
+    );
+  } 
 
   int get _photoCount => _photos.where((p) => p != null).length;
 
@@ -85,8 +132,8 @@ class _OnboardingPhotosScreenState extends State<OnboardingPhotosScreen> {
     
     // Convert photo captions to the format expected by Profile
     final Map<int, String> captionsMap = {};
-    _photoCaptions.forEach((index, prompt) {
-      if (prompt != null) {
+    _photoCaptions.forEach((index, caption) {
+      if (caption.isNotEmpty) {
         // Find the actual index in the selectedPhotos list
         int actualIndex = 0;
         for (int i = 0; i <= index; i++) {
@@ -95,7 +142,7 @@ class _OnboardingPhotosScreenState extends State<OnboardingPhotosScreen> {
             actualIndex++;
           }
         }
-        captionsMap[actualIndex] = '${prompt.question}\n${prompt.answer}';
+        captionsMap[actualIndex] = caption;
       }
     });
     
@@ -104,12 +151,16 @@ class _OnboardingPhotosScreenState extends State<OnboardingPhotosScreen> {
       photoCaptions: captionsMap,
     );
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => OnboardingPromptsScreen(profile: updatedProfile),
-      ),
-    );
+    if (widget.isEditing) {
+      Navigator.pop(context, updatedProfile);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OnboardingPromptsScreen(profile: updatedProfile),
+        ),
+      );
+    }
   }
 
   @override
@@ -206,15 +257,25 @@ class _OnboardingPhotosScreenState extends State<OnboardingPhotosScreen> {
                                 : AppColors.textSecondary.withOpacity(0.3),
                             width: hasPhoto ? 2 : 1,
                           ),
-                          image: hasPhoto
-                              ? DecorationImage(
-                                  image: NetworkImage(photo),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
                         ),
+                        clipBehavior: Clip.antiAlias,
                         child: Stack(
                           children: [
+                            if (hasPhoto)
+                              Positioned.fill(
+                                child: Image.network(
+                                  photo!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: AppColors.cardBackground,
+                                      child: const Center(
+                                        child: Icon(Icons.broken_image, color: AppColors.textSecondary),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                             if (!hasPhoto)
                               Center(
                                 child: Column(
@@ -278,7 +339,7 @@ class _OnboardingPhotosScreenState extends State<OnboardingPhotosScreen> {
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
-                                        _photoCaptions[index]!.question.split(' ').take(2).join(' '),
+                                        _photoCaptions[index]!,
                                         style: const TextStyle(
                                           fontSize: 11,
                                           color: Colors.white,

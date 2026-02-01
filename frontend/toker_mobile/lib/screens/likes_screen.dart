@@ -112,14 +112,14 @@ class _LikesScreenState extends State<LikesScreen> {
                         });
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.cream,
-                        side: const BorderSide(color: AppColors.cream),
+                        foregroundColor: AppColors.textSecondary,
+                        side: const BorderSide(color: AppColors.textSecondary),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Continuer'),
+                      child: const Text('Plus tard'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -141,14 +141,14 @@ class _LikesScreenState extends State<LikesScreen> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.neonRed,
+                        backgroundColor: AppColors.neonTeal,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Envoyer un message'),
+                      child: const Text('Discuter'),
                     ),
                   ),
                 ],

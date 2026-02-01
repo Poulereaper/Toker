@@ -6,6 +6,7 @@ import '../services/mock_data_service.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   final Profile profile;
+  final Profile? currentUser; // Added to fix compatibility mismatch
   final bool isOwnProfile;
   final VoidCallback? onLike;
   final VoidCallback? onNope;
@@ -14,6 +15,7 @@ class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({
     super.key,
     required this.profile,
+    this.currentUser,
     this.isOwnProfile = false,
     this.onLike,
     this.onNope,
@@ -37,8 +39,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   void _handleAction(SwipeAction action) {
     if (widget.isOwnProfile) return;
 
+    final currentUserId = widget.currentUser?.id ?? mockService.currentUser.id;
     mockService.recordSwipe(
-      mockService.currentUser.id,
+      currentUserId,
       widget.profile.id,
       action,
     );
@@ -71,9 +74,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final compatibilityScore = widget.isOwnProfile
+    final compatibilityScore = widget.isOwnProfile || widget.currentUser == null
         ? null
-        : mockService.currentUser.calculateCompatibility(widget.profile);
+        : widget.currentUser!.calculateCompatibility(widget.profile);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -135,10 +138,27 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      
-                      // Location
+
+                      // Gender & Location Row
                       Row(
                         children: [
+                          Icon(
+                            widget.profile.gender == 'Male' ? Icons.male :
+                            widget.profile.gender == 'Female' ? Icons.female : Icons.transgender,
+                            color: AppColors.neonTeal,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            widget.profile.gender == 'Male' ? 'Homme' :
+                            widget.profile.gender == 'Female' ? 'Femme' : 'Non-binaire',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.neonTeal,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
                           const Icon(Icons.location_on, color: AppColors.textSecondary, size: 18),
                           const SizedBox(width: 4),
                           Text(
@@ -189,8 +209,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: widget.profile.interests.map((interest) {
-                          final isCommon = !widget.isOwnProfile &&
-                              mockService.currentUser.interests.contains(interest);
+                          final isCommon = !widget.isOwnProfile && widget.currentUser != null &&
+                              widget.currentUser!.interests.contains(interest);
                           return Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(

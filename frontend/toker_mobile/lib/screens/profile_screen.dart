@@ -22,6 +22,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Profile? _profile;
   bool _isLoading = true;
 
+  final Map<String, String> _interestEmojis = {
+    'Voyage': '✈️', 'Cuisine': '🍳', 'Cinéma': '🎬', 'Musique': '🎵', 'Sport': '🏃',
+    'Lecture': '📚', 'Gaming': '🎮', 'Art': '🎨', 'Tech': '💻', 'Mode': '👗',
+    'Aventure': '🌿', 'Animaux': '🐶', 'Photographie': '📸', 'Danse': '💃', 'Festivals': '🎉'
+  };
+
   @override
   void initState() {
     super.initState();
@@ -194,7 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         child: Text(
-                          interest,
+                          '${interest} ${_interestEmojis[interest] ?? ""}',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -457,17 +463,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   height: 56,
                   child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                        (route) => false,
-                      );
-                      // Clear auth state would happen here in a real app
-                      // but AuthService uses shared prefs so we might want to clear that
-
+                    onPressed: () async {
+                      await _authService.logout();
+                      if (context.mounted) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      }
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.neonRed,

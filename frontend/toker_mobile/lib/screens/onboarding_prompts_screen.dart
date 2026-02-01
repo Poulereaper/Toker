@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../models/profile.dart';
 import '../models/prompt.dart';
+import '../services/auth_service.dart';
 import '../services/mock_data_service.dart';
 import 'home_screen.dart';
 
 class OnboardingPromptsScreen extends StatefulWidget {
   final Profile profile;
+  final bool isEditing;
 
   const OnboardingPromptsScreen({
     super.key,
     required this.profile,
+    this.isEditing = false,
   });
 
   @override
@@ -21,6 +24,15 @@ class _OnboardingPromptsScreenState extends State<OnboardingPromptsScreen> {
   final List<Prompt?> _prompts = List.filled(3, null);
   final int _minPrompts = 1;
   final int _maxPrompts = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize prompts from profile if editing
+    for (int i = 0; i < widget.profile.prompts.length && i < _maxPrompts; i++) {
+        _prompts[i] = widget.profile.prompts[i];
+    }
+  }
 
   void _selectPrompt(int index) {
     showModalBottomSheet(
@@ -64,20 +76,52 @@ class _OnboardingPromptsScreenState extends State<OnboardingPromptsScreen> {
 
   int get _promptCount => _prompts.where((p) => p != null).length;
 
-  void _finish() {
+  bool _isSaving = false;
+
+  void _finish() async {
+    if (_isSaving) return;
+
     final selectedPrompts = _prompts.where((p) => p != null).cast<Prompt>().toList();
     
     // Update profile with prompts
-    final mockService = MockDataService();
     final finalProfile = widget.profile.copyWith(prompts: selectedPrompts);
-    mockService.updateCurrentUser(finalProfile);
     
-    // Navigate to home
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
-      (route) => false,
-    );
+    if (widget.isEditing) {
+      Navigator.pop(context, finalProfile);
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+    
+    try {
+      // Save to Supabase via AuthService
+      final authService = AuthService();
+      await authService.saveUserProfile(finalProfile);
+      
+      if (mounted) {
+         // Navigate to home
+         Navigator.pushAndRemoveUntil(
+           context,
+           MaterialPageRoute(builder: (context) => const HomeScreen()),
+           (route) => false,
+         );
+      }
+    } catch (e) {
+      print('❌ Error saving profile: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la sauvegarde: $e'),
+            backgroundColor: AppColors.neonRed,
+          ),
+        );
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   @override
@@ -251,9 +295,9 @@ class _OnboardingPromptsScreenState extends State<OnboardingPromptsScreen> {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'C\'est parti !',
-                    style: TextStyle(
+                  child: Text(
+                    widget.isEditing ? 'Valider' : 'C\'est parti !',
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
