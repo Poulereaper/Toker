@@ -30,23 +30,38 @@ class _MatchesScreenState extends State<MatchesScreen> {
   }
 
   Future<void> _loadMatches() async {
-    final userId = await _authService.getUserId() ?? 'user_1';
+    final userId = await _authService.getUserId();
+    
+    // Safety check: if no user is logged in, don't try to fetch matches
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     
     // Fetch both matches and current user for live score calculation
-    final results = await Future.wait([
-      _matchService.getMatches(userId),
-      _profileService.getCurrentUser(userId),
-    ]);
-    
-    final matches = results[0] as List<Match>;
-    final currentUser = results[1] as Profile;
+    try {
+      final results = await Future.wait([
+        _matchService.getMatches(userId),
+        _profileService.getCurrentUser(userId),
+      ]);
+      
+      final matches = results[0] as List<Match>;
+      final currentUser = results[1] as Profile;
 
-    if (mounted) {
-      setState(() {
-        _matches = matches;
-        _currentUser = currentUser;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _matches = matches;
+          _currentUser = currentUser;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Erreur chargement matchs/profil: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // Stop spinner so user isn't stuck
+        });
+      }
     }
   }
 

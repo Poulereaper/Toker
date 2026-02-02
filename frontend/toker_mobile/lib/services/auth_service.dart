@@ -9,56 +9,106 @@ class AuthService {
 
   /// Simulate TikTok Auth using Supabase (Anonymous for now)
   /// [forceNewUser] if true, ignores existing profile checking and treats as new user (for "Sign Up" button)
-  Future<bool> simulateTikTokAuth(String tikTokSecretId, {bool forceNewUser = false}) async {
-    print('🔄 Auth Supabase (Simulated via Anonymous Sign-in)...');
-    
-    // Check if we are already signed in
-    if (_supabase.auth.currentUser == null) {
-      try {
-        final response = await _supabase.auth.signInAnonymously();
-        print('✅ Connecté anonymement: ${response.user?.id}');
-      } catch (e) {
-        print('❌ Erreur connexion Supabase: $e');
-        throw Exception('Impossible de se connecter à Supabase (Auth Anonyme). Vérifiez que l\'option est activée dans le dashboard Supabase.');
-      }
-    }
-
-    final userId = _supabase.auth.currentUser!.id;
-    
-    if (forceNewUser) {
-       print('⚠️ Force New User requested: treating as new user regardless of DB');
-       return true;
-    }
-
-    // Check if profile exists AND is complete
+  /// Sign Up with a new random ID (Mock TikTok)
+  Future<String?> signUp() async {
+    print('🆕 Inscription nouveau compte...');
     try {
-      final profileData = await _supabase
-          .from('users')
-          .select('id, name')
-          .eq('id', userId)
-          .maybeSingle();
+      // Generate a deterministic ID based on time or random for the demo
+      // In reality, we rely on Supabase to generate the UUID
+      // But we need a known email to log back in.
+      // Strategy: Create a new user with random email/password
+      
+      final tempId = DateTime.now().millisecondsSinceEpoch.toString(); // Simple ID for email
+      final email = 'user_$tempId@toker.app';
+      final password = 'toker_password_secure'; // Hardcoded for demo simplicity
 
-      if (profileData != null && profileData['name'] != null) {
-        print('✅ Profil existant et complet pour: $userId');
-        return false; // Not a new user
-      } else {
-        print('🆕 Profil inexistant ou incomplet pour: $userId');
-        return true; // New user (needs onboarding)
+      final response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        print('✅ Compte créé: ${response.user!.id} ($email)');
+        return response.user!.id; // Return standard UUID
       }
+      return null;
     } catch (e) {
-      print('⚠️ Erreur vérification profil: $e');
-      return true; // Assume new user on error to safe default
+      print('❌ Erreur Inscription: $e');
+      throw Exception('Erreur création compte: $e');
     }
   }
 
-  /// Check if user is authenticated
-  Future<bool> isAuthenticated() async {
-    return _supabase.auth.currentUser != null;
+  /// Sign In with existing ID
+  /// The user inputs the ID (actually the 'user_<timestamp>' part or strictly the UUID?)
+  /// Problem: UUID is hard to guess.
+  /// Solution: We will use the UUID *as* the username if possible, or stick to the generated email.
+  /// Since we generated `user_$tempId@toker.app`, the user needs to know `$tempId`. 
+  /// BUT `tempId` is long (timestamp).
+  /// BETTER: Let's assume the user copies the *Supabase UUID*? 
+  /// No, you can't log in with UUID + Password easily without Email.
+  /// 
+  /// REVISED STRATEGY: 
+  /// User enters "PseudoID" (e.g. 12345). We map `12345@toker.app`.
+  /// Let's generate a 6-digit random ID for "Sign Up" that is easier to remember/type.
+  
+  Future<String?> signUpWithRandomId() async {
+    try {
+      // Generate 6-digit ID
+      final shortId = (100000 + DateTime.now().microsecondsSinceEpoch % 900000).toString();
+      final email = '$shortId@toker.app';
+      final password = 'toker_secret_$shortId'; // Password linked to ID for simplicity
+
+      final response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        print('✅ Compte créé avec ID court: $shortId');
+        return shortId; // We return the SHORT ID for the user to remember
+      }
+      return null;
+    } catch (e) {
+      print('❌ Erreur Inscription: $e');
+      rethrow;
+    }
   }
 
+  Future<bool> signInWithId(String shortId) async {
+    try {
+      final email = '$shortId@toker.app';
+      final password = 'toker_secret_$shortId';
+
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      print('✅ Connecté avec ID: $shortId (${response.user?.id})');
+      return true; // Success
+    } catch (e) {
+      print('❌ Erreur Connexion avec user: $shortId@toker.app');
+      print('❌ Erreur détails: $e');
+      // "Invalid login credentials"
+      if (e.toString().contains('Invalid login credentials')) {
+         throw Exception('ID introuvable ou incorrect.');
+      }
+      rethrow;
+    }
+  }
+
+  // Helper alias to keep compatibility if needed, or deprecate
+  // Keeping 'simulateTikTokAuth' for backward compat but redirecting logic?
+  // No, better to cleanly break and update LoginScreen.
+  
   /// Get current TikTok secret ID (Simulated)
   Future<String?> getTikTokId() async {
-    return "tiktok_simulated_${_supabase.auth.currentUser?.id.substring(0, 5)}";
+    // Return email prefix as the "ID"
+    final email = _supabase.auth.currentUser?.email;
+    if (email != null && email.contains('@toker.app')) {
+      return email.split('@')[0];
+    }
+    return _supabase.auth.currentUser?.id.substring(0, 5);
   }
 
   /// Get current user ID
@@ -74,10 +124,14 @@ class AuthService {
     try {
       final data = await _supabase
           .from('users')
-          .select('id')
+          .select('name')
           .eq('id', userId)
           .maybeSingle();
-      return data == null;
+      
+      // If row doesn't exist OR name is null/empty -> Needs onboarding
+      if (data == null) return true;
+      final name = data['name'] as String?;
+      return name == null || name.isEmpty;
     } catch (e) {
       return true;
     }
@@ -95,7 +149,15 @@ class AuthService {
     if (user == null) return;
 
     try {
-      // 1. Insert user
+      // 1. Determine TikTok ID (Short ID preferred)
+      // Extract Short ID from email if possible to store in tiktok_id for easy DB retrieval
+      String tiktokIdDisplay = 'tiktok_simulated_${user.id}';
+      if (user.email != null && user.email!.contains('@toker.app')) {
+        final shortId = user.email!.split('@')[0];
+        tiktokIdDisplay = shortId; // Store "123456" directly
+      }
+
+      // 2. Insert User Profile
       await _supabase.from('users').upsert({
         'id': user.id, // Use the Auth ID as the User ID
         'name': profile.name,
@@ -105,10 +167,10 @@ class AuthService {
         'bio': profile.bio,
         'location': profile.location,
         'interested_in': profile.interestedIn,
-        'tiktok_id': 'tiktok_simulated_${user.id}',
+        'tiktok_id': tiktokIdDisplay, // Storing Short ID here!
       });
 
-      // 2. Manage Photos
+      // 3. Manage Photos
       // First delete existing photos to ensure clean state (and handle order changes)
       await _supabase.from('user_photos').delete().eq('user_id', user.id);
       
@@ -128,7 +190,7 @@ class AuthService {
         await _supabase.from('user_photos').insert(photosData);
       }
 
-      // 3. Manage Interests
+      // 4. Manage Interests
       await _supabase.from('user_interests').delete().eq('user_id', user.id);
 
       // Limit interests if needed, though UI enforces it usually
@@ -148,7 +210,7 @@ class AuthService {
         }
       }
 
-      // 4. Manage Prompts
+      // 5. Manage Prompts
       await _supabase.from('user_prompts').delete().eq('user_id', user.id);
 
       // Unique prompts by question, limit to 3

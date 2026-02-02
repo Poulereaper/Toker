@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../theme/app_colors.dart';
+import '../services/auth_service.dart';
+import 'home_screen.dart';
+import 'onboarding_step1_screen.dart';
 
 class TikTokLoadingScreen extends StatefulWidget {
-  final Future<void> Function(String) onIdReceived;
+  final Future<void> Function(String) onIdReceived; // Kept for compatibility but unused in internal logic
   final bool isSignUp;
   
   const TikTokLoadingScreen({
@@ -22,14 +25,14 @@ class _TikTokLoadingScreenState extends State<TikTokLoadingScreen>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _rotationAnimation;
+  final _authService = AuthService();
 
-  bool _showButton = false;
   bool _isProcessing = false;
-  String? _demoId;
 
   @override
   void initState() {
     super.initState();
+    // 1. Setup Animation (Restoring the "Moving" Logo)
     _controller = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
@@ -39,40 +42,104 @@ class _TikTokLoadingScreenState extends State<TikTokLoadingScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
-    _rotationAnimation = Tween<double>(begin: 0, end: 0.1).animate(
+    _rotationAnimation = Tween<double>(begin: -0.05, end: 0.05).animate( // Subtle rotation
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
     
-    // Simulate auth process
-    _simulateAuth();
+    // 2. Start Logic
+    _processAuth();
   }
 
-  void _simulateAuth() async {
-    // Wait for "authentication"
-    await Future.delayed(const Duration(seconds: 3));
+  Future<void> _processAuth() async {
+    // Artificial delay for "Authenticating..." vibe
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (widget.isSignUp) {
+      // --- SIGN UP FLOW (Automatic) ---
+      try {
+        final shortId = await _authService.signUpWithRandomId();
+        if (shortId != null) {
+          // Print Secret ID to Terminal
+          print('\n\n\n');
+          print('==========================================');
+          print('🎉 COMPTE CRÉÉ AVEC SUCCÈS !');
+          print('🔑 VOTRE ID DE CONNEXION :  $shortId');
+          print('==========================================');
+          print('\n\n\n');
+
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const OnboardingStep1Screen()),
+              (route) => false,
+            );
+          }
+        }
+      } catch (e) {
+        print('Erreur Inscription: $e');
+        if (mounted) Navigator.pop(context);
+      }
+    } 
+    // ELSE: LOGIN FLOW -> WAITS INDEFINITELY for Secret Gesture
+  }
+
+  // --- HIDDEN INPUT LOGIC ---
+  void _showHiddenLoginDialog() {
+    final TextEditingController _idController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Mode Démo : Connexion', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: _idController,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: Colors.white),
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Entrer ID Secret',
+            labelStyle: TextStyle(color: AppColors.neonTeal),
+            enabledBorder:  UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+            focusedBorder:  UnderlineInputBorder(borderSide: BorderSide(color: AppColors.neonTeal)),
+          ),
+        ),
+        actions: [
+           TextButton(
+             onPressed: () => Navigator.pop(context),
+             child: const Text('Annuler', style: TextStyle(color: Colors.grey)),
+           ),
+           TextButton(
+             onPressed: () => _handleLogin(_idController.text),
+             child: const Text('GO', style: TextStyle(color: AppColors.neonTeal, fontWeight: FontWeight.bold)),
+           ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleLogin(String id) async {
+    if (id.isEmpty) return;
+    Navigator.pop(context); // Close dialog
+
+    setState(() => _isProcessing = true);
     
-    if (mounted) {
-      setState(() {
-        _demoId = 'tiktok_user_${DateTime.now().millisecondsSinceEpoch}';
-        _showButton = true;
-      });
-    }
-  }
-
-  void _onContinue() async {
-    if (_demoId != null && !_isProcessing) {
-       setState(() {
-        _isProcessing = true;
-      });
-      
-      // Call the callback which handles the async auth logic
-      await widget.onIdReceived(_demoId!);
-      
-      // If we're still mounted (though navigation usually happens), reset state
+    try {
+      await _authService.signInWithId(id.trim());
+      // Success
       if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
+         Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      // Error
+      setState(() => _isProcessing = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('❌ ID Incorrect'), backgroundColor: Colors.red),
+        );
       }
     }
   }
@@ -90,161 +157,108 @@ class _TikTokLoadingScreenState extends State<TikTokLoadingScreen>
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Spacer(),
             
-            // Animated TikTok-style logo
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _scaleAnimation.value,
-                  child: Transform.rotate(
-                    angle: _rotationAnimation.value,
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppColors.neonTeal,
-                            AppColors.neonRed,
+            // --- ANIMATED LOGO WITH SECRET GESTURE ---
+            GestureDetector(
+              onLongPress: () {
+                if (!widget.isSignUp) {
+                  print('🕵️‍♂️ Secret Gesture Detected!');
+                  _showHiddenLoginDialog();
+                }
+              },
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: Transform.rotate(
+                      angle: _rotationAnimation.value,
+                      child: Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              AppColors.neonTeal,
+                              AppColors.neonRed,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.neonTeal.withOpacity(0.5),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
+                            BoxShadow(
+                              color: AppColors.neonRed.withOpacity(0.5),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.neonTeal.withOpacity(0.5),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                          BoxShadow(
-                            color: AppColors.neonRed.withOpacity(0.5),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                        ],
+                        child: const Icon(
+                          FontAwesomeIcons.tiktok,
+                          size: 60,
+                          color: Colors.white,
+                        ),
                       ),
-                      child: const Icon(
-                        FontAwesomeIcons.tiktok,
-                        size: 60,
-                        color: Colors.white,
-                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            
+            const SizedBox(height: 50),
+            
+            // Text Status
+            if (_isProcessing)
+              const CircularProgressIndicator(color: AppColors.neonTeal)
+            else
+              Column(
+                children: [
+                  Text(
+                    widget.isSignUp 
+                        ? 'Analyse de votre authenticité...' 
+                        : 'Connexion en cours...',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
                   ),
-                );
-              },
-            ),
-            
-            const SizedBox(height: 40),
-            
-            // Text changes based on state
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 500),
-              child: _showButton 
-                  ? Column(
-                      key: const ValueKey('success'),
-                      children: [
-                        Text(
-                          'Connexion réussie !',
-                          style: GoogleFonts.poppins(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Bienvenue ${_demoId?.split('_').last}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      key: const ValueKey('loading'),
-                      children: [
-                        Text(
-                          widget.isSignUp ? 'Création de compte...' : 'Connexion à TikTok...',
-                          style: GoogleFonts.poppins(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          widget.isSignUp ? 'Configuration du profil...' : 'Authentification en cours',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.white.withOpacity(0.6),
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.isSignUp 
+                        ? 'Création du profil...' 
+                        : 'En attente d\'authentification...',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.5),
                     ),
-            ),
-            
-            const SizedBox(height: 40),
-            
-            // Action or Loading
-            SizedBox(
-              height: 55,
-              width: 260,
-              child: _showButton 
-                  ? ElevatedButton(
-                      onPressed: _isProcessing ? null : _onContinue,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        elevation: 5,
-                        padding: _isProcessing 
-                            ? EdgeInsets.zero 
-                            : const EdgeInsets.symmetric(horizontal: 20),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: _isProcessing 
-                          ? const Center(
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                                  strokeWidth: 2.5,
-                                ),
-                              ),
-                            )
-                          : FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                'Continuer vers Toker',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                    )
-                  : Center(
-                      child: SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.neonTeal),
-                          strokeWidth: 3,
-                        ),
-                      ),
-                    ),
-            ),
+                  ),
+                ],
+              ),
             
             const Spacer(),
-            const SizedBox(height: 80),
+            
+            // Hint text (Optional - can be removed to be fully secret)
+            if (!widget.isSignUp)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 50.0),
+                child: Text(
+                  '(Restez appuyé sur le logo pour forcer l\'accès)',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.3),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
